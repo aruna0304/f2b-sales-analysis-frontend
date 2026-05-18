@@ -1,42 +1,53 @@
-# F2B Sales Analysis — Frontend
+# F2B Sales Analysis Frontend
 
-A **Streamlit** multi-page dashboard for Farm2Bag's sales analytics platform.
+A React.js dashboard for Farm2Bag sales analytics. The app is built with Vite and consumes the existing FastAPI backend.
 
 ## Pages
 
 | Page | Description |
-|------|-------------|
-| 🏠 Home | Overview and navigation hub |
-| 📊 Demand Intelligence | Product demand scoring, trends, and weekly distribution |
-| 🏪 Vendor Analysis | Vendor purchase summaries, profit margins, and monthly trends |
-| 📈 Historical Sales | Historical sales data exploration and analysis |
+| --- | --- |
+| Home | Overview and navigation hub |
+| Demand Intelligence | Product demand scoring, filters, priority products, and weekly distribution |
+| Vendor Analysis | Vendor purchase summaries, profit margins, monthly trends, and product drill-down |
+| Historical Sales | Daily and monthly top-product sales views |
 
 ## Setup
 
 ### 1. Install dependencies
+
 ```bash
-pip install -r requirements.txt
+npm install
 ```
 
 ### 2. Configure backend URL
-Create a `.env` file in this directory:
+
+Create or update `.env` in this directory:
+
 ```env
-BACKEND_URL="http://localhost:8000"
+VITE_BACKEND_URL="http://localhost:8000"
 ```
 
 ### 3. Run the app
+
 ```bash
-streamlit run Home.py
+npm run dev
 ```
 
-The app will be available at `http://localhost:8501`.
+The app will be available at the local Vite URL, usually `http://localhost:5173`.
+
+## Build
+
+```bash
+npm run build
+```
 
 ## Requirements
-- Python 3.9+
-- A running instance of the [F2B Sales Analytics Backend](https://github.com/Ashwin-deals/f2b-sales-forecasting) on port `8000`
+
+- Node.js 16+
+- A running instance of the F2B Sales Analytics Backend on port `8000`
 
 ## Tech Stack
-- [Streamlit](https://streamlit.io/) — UI framework
-- [Plotly](https://plotly.com/python/) — Interactive charts
-- [Pandas](https://pandas.pydata.org/) — Data manipulation
-- [streamlit-option-menu](https://github.com/victoryhb/streamlit-option-menu) — Sidebar navigation
+
+- React
+- Vite
+- FastAPI backend
