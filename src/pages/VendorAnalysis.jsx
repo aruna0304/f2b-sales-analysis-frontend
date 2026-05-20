@@ -34,9 +34,17 @@ export default function VendorAnalysis() {
   const [productsLoading, setProductsLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const loadAll = () => {
+  const loadAll = (force = false) => {
     setLoading(true);
-    Promise.all([api.vendorSummary(), api.vendorProfit(), api.vendorTrends()])
+    const runFetch = () => Promise.all([
+      api.vendorSummary(force),
+      api.vendorProfit(force),
+      api.vendorTrends(force)
+    ]);
+
+    const task = force ? api.clearBackendCache().then(runFetch) : runFetch();
+
+    task
       .then(([summary, profit, trends]) => {
         setPurchaseRows(summary);
         setProfitRows(profit);
@@ -93,7 +101,7 @@ export default function VendorAnalysis() {
       <PageHeader
         title="Vendor Sales & Profit Analysis"
         subtitle="Executive analytics on vendor performance, purchase volumes, and profitability"
-        action={<button type="button" className="primary" onClick={loadAll}>Refresh Data</button>}
+        action={<button type="button" className="primary" onClick={() => loadAll(true)}>Refresh Data</button>}
       />
 
       <section className="metric-grid five">
