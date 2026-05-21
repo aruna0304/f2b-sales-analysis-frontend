@@ -49,8 +49,20 @@ export default function VendorAnalysis() {
         setPurchaseRows(summary);
         setProfitRows(profit);
         setTrendRows(trends);
+        
         const firstVendor = summary[0]?.vendorId || '';
-        setSelectedVendorId((current) => current || firstVendor);
+        const activeVendor = selectedVendorId || firstVendor;
+        setSelectedVendorId(activeVendor);
+
+        if (activeVendor) {
+          setProductsLoading(true);
+          api
+            .vendorProducts(activeVendor, force)
+            .then((rows) => setProductRows(sortByValue(rows, 'estimatedProfit')))
+            .catch(() => setProductRows([]))
+            .finally(() => setProductsLoading(false));
+        }
+
         const months = unique(trends.map((row) => row.monthStr)).sort();
         setSelectedMonths(months);
       })
@@ -162,7 +174,15 @@ function ExecutiveOverview({ purchaseRows, trendRows, monthlyTotals, selectedMon
     .sort()
     .map((monthStr) => {
       const monthRows = topFiveTrend.filter((row) => row.monthStr === monthStr);
-      return { monthStr, totalPurchaseAmt: sum(monthRows, 'totalPurchaseAmt') };
+      const vendorsInMonth = monthRows.map((r) => ({ name: r.vendorName, amount: r.totalPurchaseAmt }));
+      const sortedVendors = [...vendorsInMonth].sort((a, b) => b.amount - a.amount);
+      return {
+        monthStr,
+        totalPurchaseAmt: sum(monthRows, 'totalPurchaseAmt'),
+        vendorCount: unique(monthRows.map((r) => r.vendorName || r.vendorId)).length,
+        topVendorName: sortedVendors[0] ? sortedVendors[0].name : 'N/A',
+        topVendorAmt: sortedVendors[0] ? sortedVendors[0].amount : 0
+      };
     });
 
   return (
