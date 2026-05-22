@@ -16,6 +16,12 @@ const cards = [
     label: 'Historical Sales',
     mark: 'HS',
     text: 'Explore top products by date and month from historical sales records.'
+  },
+  {
+    page: 'wastage',
+    label: 'Wastage & Shrinkage',
+    mark: 'WS',
+    text: 'Track and monitor wastage & shrinkage across inventory.'
   }
 ];
 
