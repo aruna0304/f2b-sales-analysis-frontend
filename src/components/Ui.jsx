@@ -330,6 +330,7 @@ export function ColumnChart({ rows, labelKey, valueKey, formatter = fmtInt, colo
                     isProduct,
                     productName: row.productName,
                     totalQuantity: row.totalQuantity,
+                    estimatedProfit: row.estimatedProfit,
                     vendorName: row.vendorName
                   };
 
@@ -360,6 +361,7 @@ export function ColumnChart({ rows, labelKey, valueKey, formatter = fmtInt, colo
                     isProduct,
                     productName: row.productName,
                     totalQuantity: row.totalQuantity,
+                    estimatedProfit: row.estimatedProfit,
                     vendorName: row.vendorName
                   });
                 }}
@@ -467,6 +469,10 @@ export function ColumnChart({ rows, labelKey, valueKey, formatter = fmtInt, colo
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={{ color: '#94a3b8', fontWeight: '500' }}>Purchase Cost:</span>
                   <strong style={{ color: '#34d399', fontSize: '13px' }}>{formatter(activeTooltip.totalPurchase)}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ color: '#94a3b8', fontWeight: '500' }}>Estimated Profit:</span>
+                  <strong style={{ color: '#f59e0b', fontSize: '13px' }}>{formatter(activeTooltip.estimatedProfit || 0)}</strong>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={{ color: '#94a3b8', fontWeight: '500' }}>Quantity:</span>

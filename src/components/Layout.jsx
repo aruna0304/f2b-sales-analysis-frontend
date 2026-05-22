@@ -2,7 +2,8 @@ const navItems = [
   { key: 'home', label: 'Home', icon: 'H' },
   { key: 'demand', label: 'Demand Intelligence', icon: 'D' },
   { key: 'vendors', label: 'Vendor Analysis', icon: 'V' },
-  { key: 'historical', label: 'Historical Sales', icon: 'S' }
+  { key: 'historical', label: 'Historical Sales', icon: 'S' },
+  { key: 'wastage', label: 'Wastage & Shrinkage', icon: 'W' }
 ];
 
 export default function Layout({ page, setPage, children }) {

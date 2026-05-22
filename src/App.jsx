@@ -4,12 +4,14 @@ import Home from './pages/Home.jsx';
 import DemandIntelligence from './pages/DemandIntelligence.jsx';
 import VendorAnalysis from './pages/VendorAnalysis.jsx';
 import HistoricalSales from './pages/HistoricalSales.jsx';
+import WastageShrinkage from './pages/WastageShrinkage.jsx';
 
 const pages = {
   home: Home,
   demand: DemandIntelligence,
   vendors: VendorAnalysis,
-  historical: HistoricalSales
+  historical: HistoricalSales,
+  wastage: WastageShrinkage
 };
 
 export default function App() {
