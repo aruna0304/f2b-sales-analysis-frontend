@@ -772,18 +772,38 @@ th {
 .chart-tooltip {
   position: absolute;
   pointer-events: none;
-  background: rgba(15, 23, 42, 0.95);
+  background: rgba(15, 23, 42, 0.92);
   color: #f8fafc;
-  padding: 12px 14px;
-  border-radius: 10px;
+  padding: 14px 16px;
+  border-radius: 16px;
   font-size: 12px;
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(255, 255, 255, 0.1);
   z-index: 9999;
-  width: 250px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  backdrop-filter: blur(8px);
+  width: 260px;
+  max-height: 240px;
+  overflow-y: auto;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(12px);
   text-align: left;
-  transition: all 0.1s ease;
+  transition: left 0.1s ease, top 0.1s ease, opacity 0.15s ease, transform 0.15s ease;
+}
+
+/* Thin Custom Styled Scrollbars for Tooltip */
+.chart-tooltip::-webkit-scrollbar {
+  width: 5px;
+}
+
+.chart-tooltip::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.chart-tooltip::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 99px;
+}
+
+.chart-tooltip::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
 }
 
 .chart-tooltip-header {
@@ -834,8 +854,16 @@ th {
 }
 
 .chart-tooltip-products li {
-  margin-bottom: 3px;
+  margin-bottom: 4px;
   font-size: 11px;
+}
+
+.chart-tooltip-products li span {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .tooltip-more-items {
@@ -849,10 +877,36 @@ th {
 
 /* Curve and Dot Interactions */
 .chart-box circle {
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: r 0.25s cubic-bezier(0.4, 0, 0.2, 1), stroke-width 0.25s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s ease;
 }
 
 .chart-box circle:hover {
   r: 8px;
   stroke-width: 4px;
+}
+
+/* Premium Column Bar Styling and Hover transition */
+.column-bar {
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.column-bar:hover {
+  opacity: 1 !important;
+  filter: drop-shadow(0 4px 12px rgba(124, 58, 237, 0.25));
+}
+
+/* Rotated X-Axis Labels Styling & Scaling */
+.chart-x-label {
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.chart-x-label.rotated {
+  font-size: 11px;
+}
+
+@media (max-width: 640px) {
+  .chart-x-label.rotated {
+    font-size: 9.5px !important;
+  }
 }
