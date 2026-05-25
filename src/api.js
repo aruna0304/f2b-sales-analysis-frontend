@@ -36,6 +36,7 @@ export const api = {
   },
   demand: (force = false) => request('/data/demand', force),
   historical: (force = false) => request('/data/historical', force),
+  wastage: (force = false) => request('/data/wastage', force),
   vendorSummary: (force = false) => request('/vendors/summary', force),
   vendorProfit: (force = false) => request('/vendors/profit', force),
   vendorTrends: (force = false) => request('/vendors/trends', force),

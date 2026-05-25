@@ -1,6 +1,8 @@
 import { useState, useMemo, useEffect } from 'react';
 import { fmtInr, fmtInt } from '../utils/format.js';
 import { PageHeader, DataTable, EmptyState, Loader, ErrorState } from '../components/Ui.jsx';
+import { api } from '../api.js';
+
 
 const WASTAGE_TYPES = ['All Types', 'Spoilage', 'Damage', 'Processing', 'Theft', 'Overstock', 'Expired', 'Transport Damage', 'Expire'];
 
@@ -27,9 +29,7 @@ export default function WastageShrinkage() {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const res = await fetch('http://localhost:8000/data/wastage');
-        if (!res.ok) throw new Error('Failed to fetch wastage data');
-        const data = await res.json();
+        const data = await api.wastage();
         setEntries(data);
         setError(null);
       } catch (err) {
