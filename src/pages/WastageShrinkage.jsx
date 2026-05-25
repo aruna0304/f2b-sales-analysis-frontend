@@ -1,8 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { fmtInr, fmtInt } from '../utils/format.js';
-import { PageHeader, DataTable, EmptyState, Loader, ErrorState } from '../components/Ui.jsx';
+import { PageHeader, DataTable, EmptyState, Loader, ErrorState, LineChart } from '../components/Ui.jsx';
 import { api } from '../api.js';
-
 
 const WASTAGE_TYPES = ['All Types', 'Spoilage', 'Damage', 'Processing', 'Theft', 'Overstock', 'Expired', 'Transport Damage', 'Expire'];
 
@@ -12,6 +11,20 @@ const getTodayString = () => {
   const month = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
+};
+
+const getStartOfWeek = (dateStr) => {
+  if (!dateStr) return '';
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const date = new Date(y, m - 1, d);
+  const day = date.getDay(); // 0 is Sunday
+  const diff = date.getDate() - day + (day === 0 ? -6 : 1);
+  const startOfWeek = new Date(date.setDate(diff));
+  
+  const sy = startOfWeek.getFullYear();
+  const sm = String(startOfWeek.getMonth() + 1).padStart(2, '0');
+  const sd = String(startOfWeek.getDate()).padStart(2, '0');
+  return `${sy}-${sm}-${sd}`;
 };
 
 export default function WastageShrinkage() {
@@ -24,6 +37,8 @@ export default function WastageShrinkage() {
   const [filterType, setFilterType] = useState('All Types');
   const [filterVendor, setFilterVendor] = useState('All Vendors');
   const [filterSearch, setFilterSearch] = useState('');
+  const [timeResolution, setTimeResolution] = useState('weekly');
+  const [metricType, setMetricType] = useState('loss');
 
   useEffect(() => {
     const fetchData = async () => {
@@ -78,6 +93,93 @@ export default function WastageShrinkage() {
     };
   }, [filteredEntries]);
 
+  const chartData = useMemo(() => {
+    const monthlyGroups = {};
+    const weeklyGroups = {};
+
+    filteredEntries.forEach(entry => {
+      if (!entry.date) return;
+
+      const monthKey = entry.date.substring(0, 7);
+      const weekKey = getStartOfWeek(entry.date);
+
+      // Monthly aggregation
+      if (!monthlyGroups[monthKey]) {
+        monthlyGroups[monthKey] = {
+          monthKey,
+          loss: 0,
+          qty: 0,
+          productsMap: {}
+        };
+      }
+      monthlyGroups[monthKey].loss += entry.loss || 0;
+      monthlyGroups[monthKey].qty += entry.quantityLost || 0;
+      const mProd = entry.product || 'Unknown';
+      monthlyGroups[monthKey].productsMap[mProd] = (monthlyGroups[monthKey].productsMap[mProd] || 0) + (entry.loss || 0);
+
+      // Weekly aggregation
+      if (!weeklyGroups[weekKey]) {
+        weeklyGroups[weekKey] = {
+          weekKey,
+          loss: 0,
+          qty: 0,
+          productsMap: {}
+        };
+      }
+      weeklyGroups[weekKey].loss += entry.loss || 0;
+      weeklyGroups[weekKey].qty += entry.quantityLost || 0;
+      const wProd = entry.product || 'Unknown';
+      weeklyGroups[weekKey].productsMap[wProd] = (weeklyGroups[weekKey].productsMap[wProd] || 0) + (entry.loss || 0);
+    });
+
+    const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+    const monthlyList = Object.keys(monthlyGroups).sort().map(key => {
+      const g = monthlyGroups[key];
+      const [y, m] = key.split('-');
+      const label = `${MONTHS[parseInt(m, 10) - 1]} ${y.slice(-2)}`;
+      
+      const topProducts = Object.entries(g.productsMap)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3)
+        .map(([name]) => name);
+
+      return {
+        label,
+        totalLoss: g.loss,
+        totalQty: g.qty,
+        products: topProducts
+      };
+    });
+
+    const weeklyList = Object.keys(weeklyGroups).sort().map(key => {
+      const g = weeklyGroups[key];
+      const [, m, d] = key.split('-');
+      const label = `${MONTHS[parseInt(m, 10) - 1]} ${d}`;
+      
+      const topProducts = Object.entries(g.productsMap)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3)
+        .map(([name]) => name);
+
+      return {
+        label,
+        totalLoss: g.loss,
+        totalQty: g.qty,
+        products: topProducts
+      };
+    });
+
+    return {
+      monthly: monthlyList,
+      weekly: weeklyList
+    };
+  }, [filteredEntries]);
+
+  const activeChartData = useMemo(() => {
+    return timeResolution === 'weekly' ? chartData.weekly : chartData.monthly;
+  }, [chartData, timeResolution]);
+
   const analysis = useMemo(() => {
     const byVendor = {};
     const byProduct = {};
@@ -129,6 +231,121 @@ export default function WastageShrinkage() {
         <KpiCard title="Total Records" value={fmtInt(kpis.records)} icon="file" color="blue" />
         <KpiCard title="Total Monetary Loss" value={fmtInr(kpis.loss)} icon="trending-down" color="red" />
         <KpiCard title="Total Quantity Lost" value={`${Number(kpis.qty || 0).toLocaleString('en-IN', {maximumFractionDigits: 2})} KG`} icon="package-minus" color="orange" />
+      </section>
+
+      {/* WASTAGE TRENDS GRAPH */}
+      <section className="glass-panel" style={{ marginBottom: '24px', padding: '24px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
+          <div>
+            <h3 style={{ margin: '0', fontSize: '18px', fontWeight: '700', color: '#0f172a' }}>Wastage Trend Analysis</h3>
+            <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#64748b' }}>Visualize wastage trends by week or month</p>
+          </div>
+          
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+            {/* Resolution Toggle */}
+            <div className="btn-group-toggle" style={{ display: 'flex', background: '#f1f5f9', padding: '4px', borderRadius: '8px' }}>
+              <button 
+                type="button"
+                className={`toggle-btn ${timeResolution === 'weekly' ? 'active' : ''}`}
+                onClick={() => setTimeResolution('weekly')}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: '6px',
+                  fontSize: '13px',
+                  fontWeight: '600',
+                  border: 'none',
+                  background: timeResolution === 'weekly' ? '#ffffff' : 'transparent',
+                  color: timeResolution === 'weekly' ? '#0f172a' : '#64748b',
+                  boxShadow: timeResolution === 'weekly' ? '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)' : 'none',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                Weekly
+              </button>
+              <button 
+                type="button"
+                className={`toggle-btn ${timeResolution === 'monthly' ? 'active' : ''}`}
+                onClick={() => setTimeResolution('monthly')}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: '6px',
+                  fontSize: '13px',
+                  fontWeight: '600',
+                  border: 'none',
+                  background: timeResolution === 'monthly' ? '#ffffff' : 'transparent',
+                  color: timeResolution === 'monthly' ? '#0f172a' : '#64748b',
+                  boxShadow: timeResolution === 'monthly' ? '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)' : 'none',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                Monthly
+              </button>
+            </div>
+
+            {/* Metric Toggle */}
+            <div className="btn-group-toggle" style={{ display: 'flex', background: '#f1f5f9', padding: '4px', borderRadius: '8px' }}>
+              <button 
+                type="button"
+                className={`toggle-btn ${metricType === 'loss' ? 'active' : ''}`}
+                onClick={() => setMetricType('loss')}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: '6px',
+                  fontSize: '13px',
+                  fontWeight: '600',
+                  border: 'none',
+                  background: metricType === 'loss' ? '#ffffff' : 'transparent',
+                  color: metricType === 'loss' ? '#0f172a' : '#64748b',
+                  boxShadow: metricType === 'loss' ? '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)' : 'none',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                Loss (₹)
+              </button>
+              <button 
+                type="button"
+                className={`toggle-btn ${metricType === 'qty' ? 'active' : ''}`}
+                onClick={() => setMetricType('qty')}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: '6px',
+                  fontSize: '13px',
+                  fontWeight: '600',
+                  border: 'none',
+                  background: metricType === 'qty' ? '#ffffff' : 'transparent',
+                  color: metricType === 'qty' ? '#0f172a' : '#64748b',
+                  boxShadow: metricType === 'qty' ? '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)' : 'none',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                Qty (KG)
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Graph Display */}
+        {activeChartData.length > 1 ? (
+          <LineChart 
+            rows={activeChartData}
+            xKey="label"
+            series={[{
+              key: metricType === 'loss' ? 'totalLoss' : 'totalQty',
+              label: metricType === 'loss' ? 'Monetary Loss' : 'Quantity Lost',
+              color: metricType === 'loss' ? '#ef4444' : '#f97316',
+              formatter: metricType === 'loss' ? fmtInr : (val) => `${Number(val || 0).toLocaleString('en-IN', {maximumFractionDigits: 2})} KG`
+            }]}
+          />
+        ) : (
+          <div style={{ height: '240px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: '14px', background: '#f8fafc', borderRadius: '12px', border: '1px dashed #cbd5e1' }}>
+            <strong>Not enough data points</strong>
+            <span style={{ fontSize: '12px', marginTop: '4px' }}>Try broadening your date filters to see a trend line.</span>
+          </div>
+        )}
       </section>
 
       {/* ANALYSIS SECTION */}
