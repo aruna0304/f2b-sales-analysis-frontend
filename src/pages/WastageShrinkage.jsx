@@ -5,6 +5,22 @@ import { api } from '../api.js';
 
 const WASTAGE_TYPES = ['All Types', 'Spoilage', 'Damage', 'Processing', 'Theft', 'Overstock', 'Expired', 'Transport Damage', 'Expire'];
 
+const MONTHS_LIST = [
+  { value: 'All Months', label: 'All Months' },
+  { value: '01', label: 'January' },
+  { value: '02', label: 'February' },
+  { value: '03', label: 'March' },
+  { value: '04', label: 'April' },
+  { value: '05', label: 'May' },
+  { value: '06', label: 'June' },
+  { value: '07', label: 'July' },
+  { value: '08', label: 'August' },
+  { value: '09', label: 'September' },
+  { value: '10', label: 'October' },
+  { value: '11', label: 'November' },
+  { value: '12', label: 'December' }
+];
+
 const getTodayString = () => {
   const d = new Date();
   const year = d.getFullYear();
@@ -32,12 +48,11 @@ export default function WastageShrinkage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const [filterStart, setFilterStart] = useState('2026-03-01');
-  const [filterEnd, setFilterEnd] = useState(getTodayString());
+  const [filterYear, setFilterYear] = useState('All Years');
+  const [filterMonth, setFilterMonth] = useState('All Months');
   const [filterType, setFilterType] = useState('All Types');
   const [filterVendor, setFilterVendor] = useState('All Vendors');
   const [filterSearch, setFilterSearch] = useState('');
-  const [timeResolution, setTimeResolution] = useState('weekly');
   const [metricType, setMetricType] = useState('loss');
 
   useEffect(() => {
@@ -56,6 +71,20 @@ export default function WastageShrinkage() {
     fetchData();
   }, []);
 
+  const yearsList = useMemo(() => {
+    const years = new Set();
+    entries.forEach(e => {
+      if (e.date) {
+        const y = e.date.substring(0, 4);
+        if (y && !isNaN(y)) years.add(y);
+      }
+    });
+    if (years.size === 0) {
+      years.add('2026');
+    }
+    return ['All Years', ...Array.from(years).sort().reverse()];
+  }, [entries]);
+
   const vendorsList = useMemo(() => {
     const list = new Set();
     entries.forEach(e => {
@@ -68,15 +97,22 @@ export default function WastageShrinkage() {
     return entries.filter(entry => {
       if (filterType !== 'All Types' && entry.type?.toLowerCase() !== filterType.toLowerCase()) return false;
       if (filterVendor !== 'All Vendors' && entry.vendorName !== filterVendor) return false;
-      if (filterStart && entry.date < filterStart) return false;
-      if (filterEnd && entry.date > filterEnd) return false;
+      
+      if (entry.date) {
+        const [y, m] = entry.date.split('-');
+        if (filterYear !== 'All Years' && y !== filterYear) return false;
+        if (filterMonth !== 'All Months' && m !== filterMonth) return false;
+      } else {
+        if (filterYear !== 'All Years' || filterMonth !== 'All Months') return false;
+      }
+
       if (filterSearch && 
         !entry.product?.toLowerCase().includes(filterSearch.toLowerCase()) && 
         !entry.vendorName?.toLowerCase().includes(filterSearch.toLowerCase())
       ) return false;
       return true;
     });
-  }, [entries, filterType, filterVendor, filterStart, filterEnd, filterSearch]);
+  }, [entries, filterType, filterVendor, filterYear, filterMonth, filterSearch]);
 
   const kpis = useMemo(() => {
     let totalLoss = 0;
@@ -93,92 +129,65 @@ export default function WastageShrinkage() {
     };
   }, [filteredEntries]);
 
-  const chartData = useMemo(() => {
-    const monthlyGroups = {};
-    const weeklyGroups = {};
+  const activeChartData = useMemo(() => {
+    const groups = {};
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
     filteredEntries.forEach(entry => {
       if (!entry.date) return;
 
-      const monthKey = entry.date.substring(0, 7);
-      const weekKey = getStartOfWeek(entry.date);
+      const [y, m, d] = entry.date.split('-');
+      const monthIdx = (parseInt(m, 10) - 1) || 0;
+      const monthName = monthNames[monthIdx] || m;
 
-      // Monthly aggregation
-      if (!monthlyGroups[monthKey]) {
-        monthlyGroups[monthKey] = {
-          monthKey,
+      let groupKey = '';
+      let label = '';
+      let dateObj;
+
+      if (filterYear !== 'All Years' && filterMonth !== 'All Months') {
+        // Specific Month & Specific Year: daily resolution
+        groupKey = entry.date;
+        label = `${monthName} ${parseInt(d, 10)}`;
+        dateObj = new Date(parseInt(y, 10), monthIdx, parseInt(d, 10));
+      } else if (filterYear !== 'All Years') {
+        // Specific Year, All Months: monthly resolution
+        groupKey = `${y}-${m}`;
+        label = monthName;
+        dateObj = new Date(parseInt(y, 10), monthIdx, 1);
+      } else if (filterMonth !== 'All Months') {
+        // All Years, Specific Month: Group by Year (show yearly comparison for that month)
+        groupKey = y;
+        label = y;
+        dateObj = new Date(parseInt(y, 10), monthIdx, 1);
+      } else {
+        // All Years, All Months: Monthly resolution over time
+        groupKey = `${y}-${m}`;
+        label = `${monthName} ${y.slice(-2)}`;
+        dateObj = new Date(parseInt(y, 10), monthIdx, 1);
+      }
+
+      if (!groups[groupKey]) {
+        groups[groupKey] = {
+          groupKey,
+          label,
           loss: 0,
           qty: 0,
-          productsMap: {}
+          dateObj
         };
       }
-      monthlyGroups[monthKey].loss += entry.loss || 0;
-      monthlyGroups[monthKey].qty += entry.quantityLost || 0;
-      const mProd = entry.product || 'Unknown';
-      monthlyGroups[monthKey].productsMap[mProd] = (monthlyGroups[monthKey].productsMap[mProd] || 0) + (entry.loss || 0);
-
-      // Weekly aggregation
-      if (!weeklyGroups[weekKey]) {
-        weeklyGroups[weekKey] = {
-          weekKey,
-          loss: 0,
-          qty: 0,
-          productsMap: {}
-        };
-      }
-      weeklyGroups[weekKey].loss += entry.loss || 0;
-      weeklyGroups[weekKey].qty += entry.quantityLost || 0;
-      const wProd = entry.product || 'Unknown';
-      weeklyGroups[weekKey].productsMap[wProd] = (weeklyGroups[weekKey].productsMap[wProd] || 0) + (entry.loss || 0);
+      groups[groupKey].loss += entry.loss || 0;
+      groups[groupKey].qty += entry.quantityLost || 0;
     });
 
-    const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-    const monthlyList = Object.keys(monthlyGroups).sort().map(key => {
-      const g = monthlyGroups[key];
-      const [y, m] = key.split('-');
-      const label = `${MONTHS[parseInt(m, 10) - 1]} ${y.slice(-2)}`;
-      
-      const topProducts = Object.entries(g.productsMap)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 3)
-        .map(([name]) => name);
-
-      return {
-        label,
+    // Sort chronologically
+    return Object.values(groups)
+      .sort((a, b) => a.dateObj - b.dateObj)
+      .map(g => ({
+        label: g.label,
         totalLoss: g.loss,
-        totalQty: g.qty,
-        products: topProducts
-      };
-    });
-
-    const weeklyList = Object.keys(weeklyGroups).sort().map(key => {
-      const g = weeklyGroups[key];
-      const [, m, d] = key.split('-');
-      const label = `${MONTHS[parseInt(m, 10) - 1]} ${d}`;
-      
-      const topProducts = Object.entries(g.productsMap)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 3)
-        .map(([name]) => name);
-
-      return {
-        label,
-        totalLoss: g.loss,
-        totalQty: g.qty,
-        products: topProducts
-      };
-    });
-
-    return {
-      monthly: monthlyList,
-      weekly: weeklyList
-    };
-  }, [filteredEntries]);
-
-  const activeChartData = useMemo(() => {
-    return timeResolution === 'weekly' ? chartData.weekly : chartData.monthly;
-  }, [chartData, timeResolution]);
+        totalQty: g.qty
+      }));
+  }, [filteredEntries, filterYear, filterMonth]);
 
   const analysis = useMemo(() => {
     const byVendor = {};
@@ -233,57 +242,59 @@ export default function WastageShrinkage() {
         <KpiCard title="Total Quantity Lost" value={`${Number(kpis.qty || 0).toLocaleString('en-IN', {maximumFractionDigits: 2})} KG`} icon="package-minus" color="orange" />
       </section>
 
+      {/* FILTERS */}
+      <section className="ws-filter-panel glass-panel">
+        <div className="ws-filter-grid">
+          <label className="ws-field">
+            <span>Choose Year</span>
+            <select value={filterYear} onChange={(e) => setFilterYear(e.target.value)}>
+              {yearsList.map(y => <option key={y} value={y}>{y}</option>)}
+            </select>
+          </label>
+          <label className="ws-field">
+            <span>Choose Month</span>
+            <select value={filterMonth} onChange={(e) => setFilterMonth(e.target.value)}>
+              {MONTHS_LIST.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+            </select>
+          </label>
+          <label className="ws-field">
+            <span>Wastage Type</span>
+            <select value={filterType} onChange={(e) => setFilterType(e.target.value)}>
+              {WASTAGE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </label>
+          <label className="ws-field">
+            <span>Vendor</span>
+            <select value={filterVendor} onChange={(e) => setFilterVendor(e.target.value)}>
+              {vendorsList.map(v => <option key={v} value={v}>{v}</option>)}
+            </select>
+          </label>
+          <label className="ws-field">
+            <span>Product Search</span>
+            <input type="text" placeholder="Search product or vendor..." value={filterSearch} onChange={(e) => setFilterSearch(e.target.value)} />
+          </label>
+        </div>
+        <div className="ws-filter-actions">
+          <button className="ws-btn-ghost" onClick={() => {
+            setFilterYear('All Years'); setFilterMonth('All Months'); setFilterType('All Types'); setFilterVendor('All Vendors'); setFilterSearch('');
+          }}>Clear</button>
+        </div>
+      </section>
+
       {/* WASTAGE TRENDS GRAPH */}
       <section className="glass-panel" style={{ marginBottom: '24px', padding: '24px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
           <div>
             <h3 style={{ margin: '0', fontSize: '18px', fontWeight: '700', color: '#0f172a' }}>Wastage Trend Analysis</h3>
-            <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#64748b' }}>Visualize wastage trends by week or month</p>
+            <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#64748b' }}>
+              {filterYear === 'All Years' && filterMonth === 'All Months' && "Monthly wastage trends over all time"}
+              {filterYear !== 'All Years' && filterMonth === 'All Months' && `Monthly wastage trends for ${filterYear}`}
+              {filterYear !== 'All Years' && filterMonth !== 'All Months' && `Daily wastage trends for ${MONTHS_LIST.find(m => m.value === filterMonth)?.label} ${filterYear}`}
+              {filterYear === 'All Years' && filterMonth !== 'All Months' && `Yearly comparison for ${MONTHS_LIST.find(m => m.value === filterMonth)?.label}`}
+            </p>
           </div>
           
           <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-            {/* Resolution Toggle */}
-            <div className="btn-group-toggle" style={{ display: 'flex', background: '#f1f5f9', padding: '4px', borderRadius: '8px' }}>
-              <button 
-                type="button"
-                className={`toggle-btn ${timeResolution === 'weekly' ? 'active' : ''}`}
-                onClick={() => setTimeResolution('weekly')}
-                style={{
-                  padding: '6px 12px',
-                  borderRadius: '6px',
-                  fontSize: '13px',
-                  fontWeight: '600',
-                  border: 'none',
-                  background: timeResolution === 'weekly' ? '#ffffff' : 'transparent',
-                  color: timeResolution === 'weekly' ? '#0f172a' : '#64748b',
-                  boxShadow: timeResolution === 'weekly' ? '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)' : 'none',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease',
-                }}
-              >
-                Weekly
-              </button>
-              <button 
-                type="button"
-                className={`toggle-btn ${timeResolution === 'monthly' ? 'active' : ''}`}
-                onClick={() => setTimeResolution('monthly')}
-                style={{
-                  padding: '6px 12px',
-                  borderRadius: '6px',
-                  fontSize: '13px',
-                  fontWeight: '600',
-                  border: 'none',
-                  background: timeResolution === 'monthly' ? '#ffffff' : 'transparent',
-                  color: timeResolution === 'monthly' ? '#0f172a' : '#64748b',
-                  boxShadow: timeResolution === 'monthly' ? '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)' : 'none',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease',
-                }}
-              >
-                Monthly
-              </button>
-            </div>
-
             {/* Metric Toggle */}
             <div className="btn-group-toggle" style={{ display: 'flex', background: '#f1f5f9', padding: '4px', borderRadius: '8px' }}>
               <button 
@@ -391,41 +402,6 @@ export default function WastageShrinkage() {
         </div>
       </section>
 
-      {/* FILTERS */}
-      <section className="ws-filter-panel glass-panel">
-        <div className="ws-filter-grid">
-          <label className="ws-field">
-            <span>Start Date</span>
-            <input type="date" value={filterStart} onChange={(e) => setFilterStart(e.target.value)} />
-          </label>
-          <label className="ws-field">
-            <span>End Date</span>
-            <input type="date" value={filterEnd} onChange={(e) => setFilterEnd(e.target.value)} />
-          </label>
-          <label className="ws-field">
-            <span>Wastage Type</span>
-            <select value={filterType} onChange={(e) => setFilterType(e.target.value)}>
-              {WASTAGE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-            </select>
-          </label>
-          <label className="ws-field">
-            <span>Vendor</span>
-            <select value={filterVendor} onChange={(e) => setFilterVendor(e.target.value)}>
-              {vendorsList.map(v => <option key={v} value={v}>{v}</option>)}
-            </select>
-          </label>
-          <label className="ws-field">
-            <span>Product Search</span>
-            <input type="text" placeholder="Search product or vendor..." value={filterSearch} onChange={(e) => setFilterSearch(e.target.value)} />
-          </label>
-        </div>
-        <div className="ws-filter-actions">
-          <button className="ws-btn-ghost" onClick={() => {
-            setFilterStart('2026-03-01'); setFilterEnd(getTodayString()); setFilterType('All Types'); setFilterVendor('All Vendors'); setFilterSearch('');
-          }}>Clear</button>
-        </div>
-      </section>
-
       {/* MAIN TABLE */}
       <section className="ws-table-container glass-panel">
         <div className="ws-panel-header">
@@ -434,7 +410,7 @@ export default function WastageShrinkage() {
         </div>
         
         {filteredEntries.length > 0 ? (
-          <DataTable columns={columns} rows={filteredEntries} />
+          <DataTable columns={columns} rows={filteredEntries} paginate={true} />
         ) : (
           <div className="ws-empty-state">
             <div className="ws-empty-icon">

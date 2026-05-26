@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import TablePagination from '@mui/material/TablePagination';
 import { fmtInt, fmtInr, fmtPct } from '../utils/format.js';
 
 export function PageHeader({ title, subtitle, action }) {
@@ -46,31 +47,72 @@ export function ErrorState({ error }) {
   );
 }
 
-export function DataTable({ columns, rows, maxRows }) {
-  const visibleRows = maxRows ? rows.slice(0, maxRows) : rows;
+export function DataTable({ columns, rows, maxRows, paginate = false }) {
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+
+  useEffect(() => {
+    setPage(0);
+  }, [rows]);
+
+  const handleChangePage = (event, newPage) => {
+    setPage(newPage);
+  };
+
+  const handleChangeRowsPerPage = (event) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setPage(0);
+  };
+
+  let visibleRows = rows;
+  if (paginate) {
+    const start = page * rowsPerPage;
+    visibleRows = rows.slice(start, start + rowsPerPage);
+  } else if (maxRows) {
+    visibleRows = rows.slice(0, maxRows);
+  }
+
   return (
-    <div className="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th style={{ width: '60px', textAlign: 'center' }}>S.No</th>
-            {columns.map((column) => (
-              <th key={column.key}>{column.label}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {visibleRows.map((row, index) => (
-            <tr key={row.id || row.vendorId || row.productId || `${index}-${columns[0]?.key}`}>
-              <td style={{ textAlign: 'center', fontWeight: '600', color: '#6b7280' }}>{index + 1}</td>
+    <div>
+      {paginate && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '8px' }}>
+          <TablePagination
+            component="div"
+            count={rows.length}
+            page={page}
+            onPageChange={handleChangePage}
+            rowsPerPage={rowsPerPage}
+            onRowsPerPageChange={handleChangeRowsPerPage}
+            rowsPerPageOptions={[10, 25, 50, 100]}
+          />
+        </div>
+      )}
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th style={{ width: '60px', textAlign: 'center' }}>S.No</th>
               {columns.map((column) => (
-                <td key={column.key}>{column.render ? column.render(row, index) : row[column.key]}</td>
+                <th key={column.key}>{column.label}</th>
               ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
-      {visibleRows.length === 0 ? <EmptyState title="No rows match the current filters" /> : null}
+          </thead>
+          <tbody>
+            {visibleRows.map((row, index) => {
+              const actualIndex = paginate ? (page * rowsPerPage) + index : index;
+              return (
+                <tr key={row.id || row.vendorId || row.productId || `${actualIndex}-${columns[0]?.key}`}>
+                  <td style={{ textAlign: 'center', fontWeight: '600', color: '#6b7280' }}>{actualIndex + 1}</td>
+                  {columns.map((column) => (
+                    <td key={column.key}>{column.render ? column.render(row, actualIndex) : row[column.key]}</td>
+                  ))}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        {visibleRows.length === 0 ? <EmptyState title="No rows match the current filters" /> : null}
+      </div>
     </div>
   );
 }
@@ -204,7 +246,7 @@ function getTooltipStyles(activeTooltip, tooltipWidth = 260, tooltipHeight = 220
 export function ColumnChart({ rows, labelKey, valueKey, formatter = fmtInt, color = '#2563eb' }) {
   const width = 720;
   const height = 360;
-  const paddingLeft = 75;
+  const paddingLeft = 90;
   const paddingRight = 20;
   const paddingTop = 40;
   const paddingBottom = 85;
@@ -555,7 +597,7 @@ export function ColumnChart({ rows, labelKey, valueKey, formatter = fmtInt, colo
 export function LineChart({ rows, xKey, series }) {
   const width = 720;
   const height = 280; // slightly taller to comfortably fit values
-  const paddingLeft = 70;
+  const paddingLeft = 95;
   const paddingRight = 30;
   const paddingTop = 45;
   const paddingBottom = 40;
@@ -762,6 +804,21 @@ export function LineChart({ rows, xKey, series }) {
         {/* X-Axis Labels */}
         {rows.map((row, index) => {
           const x = paddingLeft + (index * chartWidth) / Math.max(rows.length - 1, 1);
+          const totalCount = rows.length;
+          const step = Math.ceil(totalCount / 8);
+          let skipLabel = false;
+          if (totalCount > 10) {
+            const isFirst = index === 0;
+            const isLast = index === totalCount - 1;
+            const isStep = index % step === 0;
+            const isTooCloseToLast = (totalCount - 1 - index) < step * 0.8;
+            if (!isFirst && !isLast && (!isStep || isTooCloseToLast)) {
+              skipLabel = true;
+            }
+          }
+          
+          if (skipLabel) return null;
+          
           return (
             <text key={`${row[xKey]}-${index}`} x={x} y={height - 8} textAnchor="middle" fill="#64748b" fontSize="11" fontWeight="600">
               {row[xKey]}
