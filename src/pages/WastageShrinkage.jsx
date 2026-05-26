@@ -55,12 +55,24 @@ export default function WastageShrinkage() {
   const [filterSearch, setFilterSearch] = useState('');
   const [metricType, setMetricType] = useState('loss');
 
+  const [vendorsList, setVendorsList] = useState(['All Vendors']);
+
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const data = await api.wastage();
-        setEntries(data);
+        const [wastageData, vendorSummary] = await Promise.all([
+          api.wastage(),
+          api.vendorSummary()
+        ]);
+        setEntries(wastageData);
+        
+        const vNames = new Set();
+        vendorSummary.forEach(v => {
+          if (v.vendorName) vNames.add(v.vendorName);
+        });
+        setVendorsList(['All Vendors', ...Array.from(vNames).sort()]);
+        
         setError(null);
       } catch (err) {
         setError(err.message);
@@ -83,14 +95,6 @@ export default function WastageShrinkage() {
       years.add('2026');
     }
     return ['All Years', ...Array.from(years).sort().reverse()];
-  }, [entries]);
-
-  const vendorsList = useMemo(() => {
-    const list = new Set();
-    entries.forEach(e => {
-      if (e.vendorName) list.add(e.vendorName);
-    });
-    return ['All Vendors', ...Array.from(list).sort()];
   }, [entries]);
 
   const filteredEntries = useMemo(() => {
